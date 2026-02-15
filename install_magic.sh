@@ -101,6 +101,25 @@ install_dependencies() {
     esac
 }
 
+# ── Install GCC-12 and fix missing libstdc++ / linux-libc-dev (Debian/Ubuntu) ─
+install_gcc12_and_fixes() {
+    detect_os
+    case "${OS_FAMILY}" in
+        *debian*|*ubuntu*|debian|ubuntu)
+            info "Installing gcc-12 and fix packages (libstdc++, linux-libc-dev)..."
+            sudo apt-get install -y \
+                gcc-12 \
+                g++-12 \
+                libstdc++-12-dev \
+                linux-libc-dev
+            success "gcc-12 and fix packages installed."
+            ;;
+        *)
+            warn "gcc-12 fix step is only applicable on Debian/Ubuntu. Skipping."
+            ;;
+    esac
+}
+
 # ── Fetch latest source ───────────────────────────────────────────────────────
 fetch_source() {
     if [[ -d "${BUILD_DIR}/.git" ]]; then
@@ -120,12 +139,47 @@ fetch_source() {
     success "Source ready – version ${version}"
 }
 
+# ── Patch txInput.c: replace obsolete termio with POSIX termios ──────────────
+patch_txinput() {
+    local txinput="${BUILD_DIR}/textio/txInput.c"
+
+    if [[ ! -f "${txinput}" ]]; then
+        warn "txInput.c not found at ${txinput}. Skipping patch."
+        return
+    fi
+
+    # Only patch if not already patched
+    if grep -q "termios.h" "${txinput}"; then
+        info "txInput.c already patched. Skipping."
+        return
+    fi
+
+    info "Patching txInput.c: replacing obsolete termio with POSIX termios..."
+
+    # Add missing headers at the very top of the file
+    sed -i '1s/^/#include <termios.h>\n#include <sys\/ioctl.h>\n/' "${txinput}"
+
+    # Replace old struct termio with struct termios (various forms)
+    sed -i 's/struct termio \*/struct termios */g' "${txinput}"
+    sed -i 's/struct termio$/struct termios/g'     "${txinput}"
+    sed -i 's/struct termio /struct termios /g'    "${txinput}"
+
+    # Replace obsolete SVR4 ioctl constants with POSIX equivalents
+    sed -i 's/TCGETA/TCGETS/g'   "${txinput}"
+    sed -i 's/TCSETAF/TCSETSF/g' "${txinput}"
+
+    success "txInput.c patched successfully."
+}
+
 # ── Build & install ───────────────────────────────────────────────────────────
 build_and_install() {
-    info "Configuring Magic (prefix: ${INSTALL_PREFIX})..."
+    info "Cleaning any previous build artifacts..."
     cd "${BUILD_DIR}"
+    make clean 2>/dev/null || true
 
+    info "Configuring Magic (prefix: ${INSTALL_PREFIX}, compiler: gcc-12)..."
     ./configure \
+        CC=gcc-12 \
         --prefix="${INSTALL_PREFIX}" \
         --with-tcl \
         --with-tk \
@@ -164,10 +218,12 @@ main() {
     # Ensure git is available before anything else
     command -v git &>/dev/null || error "git is required. Please install git first."
 
-    install_dependencies
-    fetch_source
-    build_and_install
-    verify_install
+    install_dependencies        # base deps (tcl, tk, cairo, etc.)
+    install_gcc12_and_fixes     # gcc-12, g++-12, libstdc++-12-dev, linux-libc-dev
+    fetch_source                # clone or update the Magic repo
+    patch_txinput               # fix obsolete termio → termios in txInput.c
+    build_and_install           # clean → configure → make → install
+    verify_install              # confirm binary exists and report version
 
     echo
     success "All done! Run 'magic' to launch the tool."
