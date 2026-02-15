@@ -99,6 +99,7 @@ sudo apt-get install -y \
     libglu1-mesa-dev \
     freeglut3-dev \
     wget curl unzip \
+    linux-libc-dev \
     2>&1 | tee -a "$LOG_FILE" \
     || error "APT install failed — see $LOG_FILE"
 
