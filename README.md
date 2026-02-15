@@ -1,22 +1,21 @@
-# SKY130 PDK Installation Guide
+# SKY130 PDK — Installation & Usage Guide
 
-Install the SkyWater SKY130 process design kit on Ubuntu 20.04 / 22.04
-using `install_sky130_pdk.sh`.
+The SkyWater SKY130 is an open-source 130 nm process design kit (PDK)
+maintained by Google and SkyWater Technology. It provides everything needed
+to design, verify, and simulate analog and digital circuits targeting the
+SKY130 process node.
 
 ---
 
-## Before You Start
+## Requirements
 
-| Requirement | Detail |
-|-------------|--------|
-| OS | Ubuntu 20.04 or 22.04 LTS |
-| Disk space | ~45 GB free |
-| RAM | 4 GB minimum |
-| Internet | Required — downloads several GB |
-| Time | 30–90 minutes |
-
-> **macOS / Windows:** Not supported natively. Use WSL2 on Windows or a
-> Linux VM.
+| | |
+|--|--|
+| **OS** | Ubuntu 20.04 or 22.04 LTS |
+| **Disk space** | ~45 GB free |
+| **RAM** | 4 GB minimum |
+| **Internet** | Required — downloads several GB |
+| **Time** | 30–90 minutes |
 
 ---
 
@@ -27,16 +26,13 @@ chmod +x install_sky130_pdk.sh
 ./install_sky130_pdk.sh
 ```
 
-When it finishes, reload your shell:
+Reload your shell when it finishes:
 
 ```bash
 source ~/.bashrc    # or: source ~/.zshrc
 ```
 
-### Custom install path
-
-By default the PDK is installed to `~/pdk/share/pdk/sky130A`.
-To change this, set `PDK_ROOT` before running:
+**Custom install path** — default is `~/pdk`. Override with:
 
 ```bash
 PDK_ROOT=/opt/pdk ./install_sky130_pdk.sh
@@ -49,63 +45,42 @@ PDK_ROOT=/opt/pdk ./install_sky130_pdk.sh
 ```
 $PDK_ROOT/share/pdk/sky130A/
 │
-├── libs.tech/
-│   ├── magic/       ← Magic technology files (.tech, .magicrc)
-│   ├── ngspice/     ← SPICE device models  (sky130.lib.spice)
-│   ├── netgen/      ← LVS setup file
-│   └── klayout/     ← DRC rules
+├── libs.tech/                  ← Tool configuration files
+│   ├── magic/                     Magic layout tool (.tech, .magicrc)
+│   ├── ngspice/                   SPICE device models
+│   ├── netgen/                    LVS setup
+│   └── klayout/                   DRC rules
 │
-└── libs.ref/
-    ├── sky130_fd_sc_hd/        ← High-density standard cells
-    │   ├── gds/                   GDS2 layout
-    │   ├── lef/                   Abstract layout (P&R)
+└── libs.ref/                   ← Cell libraries
+    ├── sky130_fd_sc_hd/           High-density standard cells
+    │   ├── gds/                   Layout (GDS2)
+    │   ├── lef/                   Abstract layout for P&R
     │   ├── lib/                   Liberty timing files
-    │   ├── verilog/               Verilog models
+    │   ├── verilog/               Verilog simulation models
     │   └── spice/                 SPICE netlists
-    ├── sky130_fd_sc_hvl/       ← High-voltage standard cells
-    ├── sky130_fd_io/           ← I/O ring cells
-    └── sky130_sram_macros/     ← Pre-built OpenRAM SRAM macros
+    ├── sky130_fd_sc_hvl/          High-voltage standard cells
+    ├── sky130_fd_io/              I/O ring cells
+    └── sky130_sram_macros/        Pre-compiled SRAM macros
 ```
 
 ---
 
 ## Environment Variables
 
-The installer writes these three variables to your `.bashrc` / `.zshrc`:
-
-| Variable | Value | Used by |
-|----------|-------|---------|
-| `PDK_ROOT` | `~/pdk/share/pdk` | OpenLane, Magic, Netgen |
-| `PDK` | `sky130A` | OpenLane |
-| `STD_CELL_LIBRARY` | `sky130_fd_sc_hd` | Synthesis, P&R |
-
-Verify they are set after reloading your shell:
+The installer writes these to your `.bashrc` / `.zshrc` automatically:
 
 ```bash
-echo $PDK_ROOT
-# → /home/yourname/pdk/share/pdk
-
-echo $PDK
-# → sky130A
+export PDK_ROOT="~/pdk/share/pdk"
+export PDK="sky130A"
+export STD_CELL_LIBRARY="sky130_fd_sc_hd"
 ```
 
----
+Verify after reloading your shell:
 
-## What the Script Does — Step by Step
-
-| Step | What happens |
-|------|-------------|
-| 1 | Checks OS, user, python3, sudo, and free disk space |
-| 2 | Installs APT system packages (tcl, cairo, X11 libs, etc.) |
-| 3 | Builds and installs **Magic** VLSI tool from source (needed by open_pdks) |
-| 4 | Clones `google/skywater-pdk` and pulls only the required cell library submodules |
-| 5 | Clones `RTimothyEdwards/open_pdks` (the PDK build system) |
-| 6 | Runs `./configure` — points open_pdks at the skywater-pdk source, enables SRAM macros |
-| 7 | Runs `make` — processes all GDS, SPICE, LEF, Liberty, and Verilog files (~20–60 min) |
-| 8 | Runs `sudo make install` — copies the finished PDK to `$PDK_ROOT` |
-| 9 | Verifies expected directories are present |
-| 10 | Writes `PDK_ROOT`, `PDK`, `STD_CELL_LIBRARY` to your shell rc file |
-| 11 | Offers to delete the build work directory (~10–20 GB) |
+```bash
+echo $PDK_ROOT    # → /home/you/pdk/share/pdk
+echo $PDK         # → sky130A
+```
 
 ---
 
@@ -117,7 +92,7 @@ echo $PDK
 magic -T $PDK_ROOT/sky130A/libs.tech/magic/sky130A.tech
 ```
 
-### ngspice — run a simulation with SKY130 models
+### ngspice — SPICE simulation
 
 Include this at the top of your SPICE deck:
 
@@ -125,9 +100,9 @@ Include this at the top of your SPICE deck:
 .lib $PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice tt
 ```
 
-Replace `tt` with `ff` or `ss` for fast/slow corners.
+Replace `tt` with `ff` (fast) or `ss` (slow) for other process corners.
 
-### Netgen — run LVS
+### Netgen — LVS check
 
 ```bash
 netgen -batch lvs \
@@ -137,51 +112,59 @@ netgen -batch lvs \
     lvs_report.txt
 ```
 
-### OpenRAM — point to the PDK
+### KLayout — view GDS / run DRC
 
-In your `sram_config.py`, the `tech_name = "sky130"` entry already
-references the PDK via `OPENRAM_TECH`. No extra configuration needed
-once both the PDK and OpenRAM are installed.
+```bash
+klayout -e layout.gds \
+    -r $PDK_ROOT/sky130A/libs.tech/klayout/sky130A.drc
+```
+
+---
+
+## PVT Corners
+
+| Corner | Process | Voltage | Temp |
+|--------|---------|---------|------|
+| `tt`   | Typical | 1.8 V   | 25°C |
+| `ff`   | Fast    | 1.95 V  | −40°C |
+| `ss`   | Slow    | 1.6 V   | 85°C |
+| `sf`   | Slow N / Fast P | 1.8 V | 25°C |
+| `fs`   | Fast N / Slow P | 1.8 V | 25°C |
+
+Reference the corner in your SPICE deck using the `.lib` directive:
+
+```spice
+.lib $PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice ff
+```
 
 ---
 
 ## Troubleshooting
 
-**Build runs out of disk space mid-way**
-
-The build requires ~45 GB. Check space and re-run — the script skips
-already-completed clone steps:
-
+**Not enough disk space mid-build**
 ```bash
 df -h ~
+# Free space, then re-run — already-cloned repos are skipped
 ./install_sky130_pdk.sh
 ```
 
 **`magic: command not found` during configure**
 
 Step 3 builds Magic from source. If it failed, build it manually:
-
 ```bash
 cd ~/.sky130_build/magic
 ./configure && make -j$(nproc) && sudo make install
 ```
 
-**`make timing` fails in skywater-pdk**
+**`sky130_sram_macros` is missing**
 
-This step generates Liberty timing data and can fail if submodules
-are incomplete. It is non-fatal — the script continues. Re-run
-`make timing` manually inside `~/.sky130_build/skywater-pdk` if needed.
-
-**`libs.ref/sky130_sram_macros` is missing**
-
-The `--enable-sram-sky130` flag was not applied. Re-run the script —
-it will skip the clone steps and re-run configure/make/install cleanly.
+The `--enable-sram-sky130` configure flag was not applied. Re-run the
+script — it skips clone steps and re-runs configure/make/install only.
 
 **Re-running the script**
 
-Safe to re-run at any time. Already-cloned repos are pulled rather
-than re-cloned, and the env block in your shell rc is replaced, not
-duplicated.
+Safe at any time. Repos are pulled (not re-cloned), and the env block
+in your shell rc is replaced, not duplicated.
 
 ---
 
@@ -191,20 +174,10 @@ duplicated.
 # Remove the installed PDK
 rm -rf ~/pdk/share/pdk/sky130A
 
-# Remove the build work directory (if kept)
+# Remove the build work directory (if you chose to keep it)
 rm -rf ~/.sky130_build
 
-# Remove env vars — edit ~/.bashrc or ~/.zshrc and delete the block between:
-#   # >>> SKY130 PDK >>>
-#   # <<< SKY130 PDK <<<
+# Remove env vars — open ~/.bashrc or ~/.zshrc and delete the lines between:
+# >>> SKY130 PDK >>>
+# <<< SKY130 PDK <<<
 ```
-
----
-
-## Related Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `install_sky130_pdk.sh` | This script — installs the full SKY130 PDK |
-| `install_openram.sh` | Installs the OpenRAM SRAM compiler |
-| `my_sram_project/run.sh` | Generates a custom SRAM macro with OpenRAM |
