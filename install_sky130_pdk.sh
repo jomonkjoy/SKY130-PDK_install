@@ -271,11 +271,24 @@ fi
 # ── 10. Set environment variables ────────────────────────────────────────────
 section "Setting environment variables"
 
-if [[ -f "$HOME/.bashrc" ]]; then
-    SHELL_RC="$HOME/.bashrc"
-else
-    SHELL_RC="$HOME/.zshrc"
-fi
+# Detect current shell and select the appropriate RC file
+CURRENT_SHELL="$(basename "$SHELL")"
+
+case "$CURRENT_SHELL" in
+    bash)  SHELL_RC="$HOME/.bashrc" ;;
+    zsh)   SHELL_RC="$HOME/.zshrc" ;;
+    fish)
+        SHELL_RC="$HOME/.config/fish/config.fish"
+        mkdir -p "$(dirname "$SHELL_RC")"
+        ;;
+    ksh)   SHELL_RC="$HOME/.kshrc" ;;
+    *)
+        warn "Unknown shell '$CURRENT_SHELL' — defaulting to $HOME/.bashrc"
+        SHELL_RC="$HOME/.bashrc"
+        ;;
+esac
+
+log "Detected shell: $CURRENT_SHELL → updating $SHELL_RC"
 
 MARKER="# >>> SKY130 PDK >>>"
 END_MARKER="# <<< SKY130 PDK <<<"
@@ -286,7 +299,18 @@ if grep -q "$MARKER" "$SHELL_RC" 2>/dev/null; then
     sed -i "/$MARKER/,/$END_MARKER/d" "$SHELL_RC"
 fi
 
-cat >> "$SHELL_RC" <<EOF
+# Write env vars in shell-appropriate syntax
+if [[ "$CURRENT_SHELL" == "fish" ]]; then
+    cat >> "$SHELL_RC" <<EOF
+
+$MARKER
+set -x PDK_ROOT "$PREFIX/share/pdk"
+set -x PDK "sky130A"
+set -x STD_CELL_LIBRARY "sky130_fd_sc_hd"
+$END_MARKER
+EOF
+else
+    cat >> "$SHELL_RC" <<EOF
 
 $MARKER
 export PDK_ROOT="$PREFIX/share/pdk"
@@ -294,8 +318,9 @@ export PDK="sky130A"
 export STD_CELL_LIBRARY="sky130_fd_sc_hd"
 $END_MARKER
 EOF
+fi
 
-# Export for current session
+# Export for current session (fish handles its own env; these are for bash/zsh/ksh/etc.)
 export PDK_ROOT="$PREFIX/share/pdk"
 export PDK="sky130A"
 export STD_CELL_LIBRARY="sky130_fd_sc_hd"
