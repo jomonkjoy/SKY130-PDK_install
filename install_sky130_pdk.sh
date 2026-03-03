@@ -271,10 +271,10 @@ fi
 # ── 10. Set environment variables ────────────────────────────────────────────
 section "Setting environment variables"
 
-if [[ -f "$HOME/.zshrc" ]]; then
-    SHELL_RC="$HOME/.zshrc"
-else
+if [[ -f "$HOME/.bashrc" ]]; then
     SHELL_RC="$HOME/.bashrc"
+else
+    SHELL_RC="$HOME/.zshrc"
 fi
 
 MARKER="# >>> SKY130 PDK >>>"
